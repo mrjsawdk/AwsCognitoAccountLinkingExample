@@ -3,6 +3,7 @@ using System.Net;
 using Amazon.CognitoIdentityProvider;
 using Amazon.CognitoIdentityProvider.Model;
 using Amazon.Lambda.Core;
+using CognitoTriggers.Exceptions;
 using Newtonsoft.Json;
 
 // Assembly attribute to enable the Lambda function's JSON input to be converted into a .NET class.
@@ -31,18 +32,19 @@ namespace CognitoTriggers
 
                     if (string.IsNullOrWhiteSpace(email))
                     {
-                        throw new UserLambdaValidationException("email not found on incoming identity with username:" + input.userName);
+                        throw new PreSignupTriggerException("email not found on incoming identity with username:" + input.userName);
                     }
 
                     Console.Write("Pre-signup triggered with : " + JsonConvert.SerializeObject(input));
 
+                    //Find an existing user with the same email
                     UserType existingUser = FindDestinationUser(input, email);
 
                     Console.WriteLine($"Found existing user with email:{email}. User is: {JsonConvert.SerializeObject(existingUser)}");
 
                     (string provider, string id) identity = ParseIncomingIdentity(input);
 
-                    //NOTE: As with linking, unlinking is also done through the API, so the UI is not as complete as with Auth0. Some code has to be created for this.
+                    //Perform account linking
                     var linkResponse = LinkProviderToExistingUser(input, identity.provider, identity.id, existingUser);
 
                     if (linkResponse.HttpStatusCode != HttpStatusCode.OK)
@@ -59,17 +61,18 @@ namespace CognitoTriggers
                 }
                 else
                 {
-                    //Allow the sign-up flow to continue by echoing the input
+                    //Allow the trigger to continue
                     return input;
                 }
             }
-            catch (UserLambdaValidationException)
+            catch (PreSignupTriggerException)
             {
                 throw;
             }
             catch (Exception e)
             {
                 Console.WriteLine(e);
+                throw new PreSignupTriggerException("Unknown error occurred");
             }
 
             return null;
@@ -99,14 +102,14 @@ namespace CognitoTriggers
             if (response.HttpStatusCode != HttpStatusCode.OK)
             {
                 Console.WriteLine($"Failed to search for users:{response.HttpStatusCode}");
-                throw new UserLambdaValidationException("Unable to search for existing account to pair with");
+                throw new PreSignupTriggerException("Unable to search for existing account to pair with");
             }
 
             //No user found. Since auto sign-up is not allowed on this pool, throw an exception
             if (response.Users.Count == 0)
             {
                 Console.WriteLine($"No existing users found with email:{email}");
-                throw new UserLambdaValidationException("No existing user with same email found");
+                throw new PreSignupTriggerException("No existing user with same email found");
             }
 
             //If user found, link the new identity to the existing user
