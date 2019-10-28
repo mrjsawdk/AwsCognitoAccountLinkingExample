@@ -56,12 +56,16 @@ namespace CognitoTriggers
                         Console.WriteLine("Linked users");
 
                         //NOTE: Make sure Cognito does not create a new user for this one by short-circuiting the creation process
-                        return new { version = 1 }; //TODO: How to prevent failure but redirect to authentication
+                        /*
+                            Question:   How to prevent failure but redirect to authentication of the destination user. Returning the input just creates a linked user and crashes the flow.
+                                        Using a valid json response, or null, the social provider login works fine and we don't get a "dead" user, but we still get an error.
+                         */
+                        return new { version = 1 };
                     }
                 }
                 else
                 {
-                    //Allow the trigger to continue
+                    //Not signup initiated by external IDP signin. Allow the trigger to continue
                     return input;
                 }
             }
@@ -112,7 +116,6 @@ namespace CognitoTriggers
                 throw new PreSignupTriggerException("No existing user with same email found");
             }
 
-            //If user found, link the new identity to the existing user
             return response.Users[0];
         }
 
